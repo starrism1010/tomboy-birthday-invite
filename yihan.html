@@ -764,10 +764,22 @@
         msg.classList.add('show');
       }
 
+      /* 点谁谁填充：去掉其他按钮的 outline（secondary）状态，只保留当前项为实心 */
+      function setActive(status) {
+        for (var k = 0; k < buttons.length; k++) {
+          if (buttons[k].getAttribute('data-rsvp') === status) {
+            buttons[k].classList.remove('secondary');
+          } else {
+            buttons[k].classList.add('secondary');
+          }
+        }
+      }
+
       for (var j = 0; j < buttons.length; j++) {
         (function (btn) {
           btn.addEventListener('click', function () {
             var status = btn.getAttribute('data-rsvp');
+            setActive(status);
             render(status);
             try { localStorage.setItem('tomboy_party_rsvp', status); } catch (err) {}
           });
@@ -777,6 +789,7 @@
       var saved = null;
       try { saved = localStorage.getItem('tomboy_party_rsvp'); } catch (err) {}
       if (saved) {
+        setActive(saved);
         msg.textContent = '你之前的回复是：' + saved + '。可重新选择修改。';
         msg.classList.add('show');
       }
