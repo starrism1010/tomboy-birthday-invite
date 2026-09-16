@@ -716,10 +716,7 @@
     <section class="page" data-index="5" data-page-node-id="TmV3cGFnZVZpZGVvMDAx">
       <div class="decor" data-page-node-id="TmV3cGFnZURlY29yMDAx"></div><div class="amb" data-page-node-id="TmV3cGFnZUFtYjAwMQ"></div>
       <div class="inner" data-page-node-id="TmV3cGFnZUlubmVyMDAx">
-        <span class="label" data-page-node-id="TmV3cGFnZUxhYmVsMDA">One More Thing</span>
-        <h2 data-page-node-id="TmV3cGFnZUgyMDAx">最后的<span class="accent" data-page-node-id="TmV3cGFnZUFjYzAwMQ">彩蛋</span></h2>
-        <p class="hero" data-page-node-id="TmV3cGFnZUhlcm8wMD">按下播放键——<br>这是寿星给你的正式亮相。</p>
-        <video class="teaser" src="teaser.mp4" poster="teaser_poster.jpg" controls playsinline preload="metadata" data-page-node-id="TmV3cGFnZVZpZGVvT2Jq"></video>
+        <video id="teaserVideo" class="teaser" src="teaser.mp4" poster="teaser_poster.jpg" controls playsinline preload="auto" data-page-node-id="TmV3cGFnZVZpZGVvT2Jq"></video>
         <p class="hint" data-page-node-id="TmV3cGFnZUhpbnQwMD">Sep.27th · 纯K见 · 记得够帅</p>
       </div>
     </section>
@@ -743,6 +740,8 @@
       var current = 0;
       var startX = 0;
 
+      var teaser = document.getElementById('teaserVideo');
+
       function show(index) {
         if (index < 0 || index >= pages.length) return;
         for (var i = 0; i < pages.length; i++) {
@@ -756,6 +755,21 @@
         if (window.__fromCover) {
           window.__fromCover = false;
           if (window.__enterPage) window.__enterPage(pages[index]);
+        }
+        if (teaser) {
+          if (index === pages.length - 1) {
+            // 滑到最后一页自动播放：先尝试带声音，被浏览器拦截则静音自动播
+            var p = teaser.play();
+            if (p && p.catch) {
+              p.catch(function () {
+                teaser.muted = true;
+                var p2 = teaser.play();
+                if (p2 && p2.catch) p2.catch(function () {});
+              });
+            }
+          } else {
+            teaser.pause();
+          }
         }
       }
 
