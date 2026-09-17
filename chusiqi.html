@@ -906,9 +906,15 @@
       /* ★ 接收邮箱：换邮箱只改这里（首次提交后需到邮箱点 formsubmit 激活邮件） */
       var RSVP_EMAIL = '1252166911@qq.com';
 
-      /* 受邀人姓名：个性化脚本会把 __INVITEE__ 替换成真名；通用版显示「朋友」 */
+      /* 受邀人姓名：个性化脚本会把下面的名字占位符替换成真名；通用版未替换时显示「朋友」。
+         ⚠️ 兜底判断必须写成 indexOf('__') === 0，不能用 === 占位符：替换是全局的，
+            若直接比对占位符原文，专属页里这行会被一并替换成比对真名，从而触发兜底，
+            姓名会永远变成「朋友」（2026-09-17 踩过的坑）。 */
       var INVITEE = '初思琦';
-      if (INVITEE === '初思琦') INVITEE = '朋友';
+      if (INVITEE.indexOf('__') === 0) INVITEE = '朋友';
+
+      /* 专属标识：由构建脚本注入（专属页 = 拼音 slug，通用版 = index）。用于在邮件里定位是谁。 */
+      var GUEST_KEY = 'chusiqi';
 
       var rsvpReply = {
         '姐来了': '我就知道你会来的，诡秘👄～',
@@ -975,6 +981,7 @@
             _subject: '🎂 RSVP｜' + INVITEE + '：' + chosen,
             _template: 'table',
             '姓名': INVITEE,
+            '标识': GUEST_KEY,
             '回复': chosen,
             '补充': note || '—',
             '时间': new Date().toLocaleString('zh-CN')
