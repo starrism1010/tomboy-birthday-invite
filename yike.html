@@ -375,6 +375,7 @@
     .teaser {
       display: block;
       width: min(72%, 44vh);
+      margin: 0;
       aspect-ratio: 9 / 16;
       object-fit: cover;
       background: #000;
@@ -382,7 +383,19 @@
       border-radius: 14px;
       box-shadow: 0 10px 34px rgba(244, 58, 140, .18);
     }
-    .page:last-of-type .hint { margin-top: 14px; }
+    /* ---------- 第 6 页：彩蛋视频（整体居中） ---------- */
+    .page:last-of-type .inner {
+      padding: 0;
+      align-items: center;
+      justify-content: center;
+    }
+    .page:last-of-type .hint {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 34px;
+      margin: 0;
+    }
 
     /* ---------- 第 1 页：信封动效封面 ---------- */
     .page-cover .cover-stage {
