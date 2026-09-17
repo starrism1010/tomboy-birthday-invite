@@ -368,6 +368,37 @@
       animation: nudge 1.7s ease-in-out infinite;
     }
     .next-hint .arr { font-size: 22px; line-height: 1; }
+
+    /* ★ 背景音乐开关（首次交互后出现） */
+    .bgm-btn {
+      position: fixed;
+      top: calc(14px + env(safe-area-inset-top, 0px));
+      right: 14px;
+      z-index: 40;
+      width: 36px; height: 36px;
+      display: grid; place-items: center;
+      border-radius: 50%;
+      border: 1px solid rgba(244, 58, 140, .55);
+      background: rgba(8, 8, 8, .62);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      color: var(--rose);
+      font-size: 16px; line-height: 1;
+      padding: 0;
+      cursor: pointer;
+      opacity: 0; pointer-events: none;
+      transition: opacity .4s ease, border-color .25s ease;
+    }
+    .bgm-btn.show { opacity: .92; pointer-events: auto; }
+    .bgm-btn.muted { border-color: rgba(255, 255, 255, .22); color: rgba(255, 255, 255, .42); }
+    .bgm-btn.muted .ic::after {
+      content: ''; position: absolute; left: 50%; top: 50%;
+      width: 20px; height: 1.5px; background: currentColor;
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+    .bgm-btn .ic { position: relative; display: block; }
+    @keyframes bgmPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.09); } }
+    .bgm-btn:not(.muted) .ic { animation: bgmPulse 2.6s ease-in-out infinite; }
     @keyframes nudge {
       0%, 100% { transform: translateX(0);   opacity: .55; }
       50%      { transform: translateX(9px); opacity: 1; }
@@ -526,6 +557,7 @@
 </head>
 <body data-page-node-id="4RfvKnhbiD2gwkg5e51Gyo">
   <div class="app" data-page-node-id="Q7J1FX2OEMCDbuHQE8EcbW">
+  <button class="bgm-btn" id="bgmBtn" type="button" aria-label="背景音乐开关"><span class="ic">♪</span></button>
 
     <!-- 第 1 页：信封封面（书写标题 + 火漆印呼吸，点印章进内页） -->
     <section class="page page-cover active" data-index="0" data-page-node-id="Z1fNFfSa1f0YdncLWu8Boe">
@@ -819,6 +851,7 @@
           window.__fromCover = false;
           if (window.__enterPage) window.__enterPage(pages[index]);
         }
+        bgmOnPage(index);
         if (teaser) {
           if (index === pages.length - 1) {
             // 滑到最后一页自动播放：先尝试带声音，被浏览器拦截则静音自动播
@@ -980,6 +1013,128 @@
         sent = true;
         msg.textContent = '你之前的回复是：' + saved.c + '（已收到）。重新选择可修改。';
         msg.classList.add('show');
+      }
+
+      /* ================= 背景音乐 =================
+         构建脚本把下面的占位符换成 'bgm.mp3'（项目里有音乐）或 ''（没有则整块跳过）。
+         起播时机：首次任意交互（点火漆印 / 滑动 / 点圆点）；
+         末页放视频时自动让位，离开末页恢复；切到后台自动暂停。 */
+      var BGM_SRC = 'bgm.mp3';
+      var bgm = null;
+      var bgmBtn = document.getElementById('bgmBtn');
+      var bgmStarted = false;
+      var bgmMuted = false;
+      try { bgmMuted = localStorage.getItem('tomboy_bgm_muted') === '1'; } catch (err) {}
+
+      function bgmPaint() {
+        if (!bgmBtn) return;
+        bgmBtn.classList.toggle('muted', bgmMuted);
+        bgmBtn.setAttribute('aria-label', bgmMuted ? '开启背景音乐' : '关闭背景音乐');
+      }
+
+      function bgmFadeTo(target, ms) {
+        if (!bgm) return;
+        var from = bgm.volume;
+        var t = 0;
+        clearInterval(bgm._fade);
+        bgm._fade = setInterval(function () {
+          t += 40;
+          var k = Math.min(1, t / ms);
+          bgm.volume = Math.max(0, Math.min(1, from + (target - from) * k));
+          if (k >= 1) clearInterval(bgm._fade);
+        }, 40);
+      }
+
+      function bgmPlay() {
+        if (!bgm) return;
+        var p = bgm.play();
+        if (p && p.catch) {
+          p.catch(function () {          /* 被自动播放策略拦截 → 先静音起播，下次交互再恢复声音 */
+            bgm.muted = true;
+            var p2 = bgm.play();
+            if (p2 && p2.catch) p2.catch(function () {});
+          });
+        }
+      }
+
+      /* 任何一次用户手势都顺手把音乐"扶正"：被静音降级的恢复声音，被暂停的恢复播放 */
+      function bgmKick() {
+        if (!bgm || !bgmStarted || bgmMuted) return;
+        if (current === pages.length - 1) return;      /* 末页让位给视频 */
+        if (bgm.paused) { bgmPlay(); bgmFadeTo(0.55, 1000); }
+        else if (bgm.muted) { bgm.muted = false; }
+      }
+
+      /* 末页有视频：音乐先淡出再停，绝不与视频声音叠响 */
+      function bgmCut(ms) {
+        if (!bgm) return;
+        clearInterval(bgm._fade);
+        if (bgm.paused) { bgm.volume = 0; return; }
+        var from = bgm.volume, t = 0, dur = ms || 340;
+        bgm._fade = setInterval(function () {
+          t += 40;
+          var k = Math.min(1, t / dur);
+          bgm.volume = Math.max(0, from * (1 - k));
+          if (k >= 1) {
+            clearInterval(bgm._fade);
+            bgm.volume = 0;
+            try { bgm.pause(); } catch (err) {}
+          }
+        }, 40);
+      }
+
+      function bgmOnPage(index) {
+        if (!bgm || !bgmStarted) return;
+        if (index === pages.length - 1) { bgmCut(260); }
+        else if (!bgmMuted) { bgmPlay(); if (!bgm.muted) bgmFadeTo(0.55, 800); }
+      }
+
+      if (BGM_SRC && bgmBtn) {
+        bgm = document.createElement('audio');
+        bgm.src = BGM_SRC;
+        bgm.loop = true;
+        bgm.preload = 'auto';
+        bgm.volume = 0;
+        document.body.appendChild(bgm);
+        bgmPaint();
+
+        /* 视频只要一开声（自动播或手动点播放），音乐立刻让位 */
+        if (teaser) {
+          teaser.addEventListener('play', function () { bgmCut(120); });
+          teaser.addEventListener('playing', function () { if (!bgm.paused) bgmCut(120); });
+        }
+
+        function bgmFirstTouch() {
+          if (bgmStarted) return;
+          bgmStarted = true;
+          bgmBtn.classList.add('show');
+          document.removeEventListener('pointerdown', bgmFirstTouch, true);
+          document.removeEventListener('touchstart', bgmFirstTouch, true);
+          document.removeEventListener('click', bgmFirstTouch, true);
+          document.removeEventListener('keydown', bgmFirstTouch, true);
+          if (bgmMuted) return;
+          bgmPlay();
+          bgmFadeTo(0.55, 1600);
+        }
+        document.addEventListener('pointerdown', bgmFirstTouch, true);
+        document.addEventListener('touchstart', bgmFirstTouch, true);
+        document.addEventListener('click', bgmFirstTouch, true);
+        document.addEventListener('keydown', bgmFirstTouch, true);
+
+        bgmBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          bgmMuted = !bgmMuted;
+          try { localStorage.setItem('tomboy_bgm_muted', bgmMuted ? '1' : '0'); } catch (err) {}
+          bgmPaint();
+          if (bgmMuted) { clearInterval(bgm._fade); bgm.pause(); }
+          else { bgmStarted = true; bgmPlay(); bgmFadeTo(0.55, 900); }
+        });
+
+        document.addEventListener('visibilitychange', function () {
+          if (!bgm || !bgmStarted) return;
+          if (document.hidden) bgm.pause();
+          else if (!bgmMuted && current !== pages.length - 1) bgmPlay();
+        });
       }
     })();
   </script>
