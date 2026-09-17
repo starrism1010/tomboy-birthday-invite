@@ -334,6 +334,22 @@
       60% { transform: translateY(-4px); }
     }
 
+    .rsvp-extra { display: none; margin-top: 14px; }
+    .rsvp-extra input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1.5px solid var(--rose);
+      background: rgba(244, 58, 140, .06);
+      color: var(--text, #f2eef0);
+      font-size: 14px;
+      outline: none;
+    }
+    .rsvp-extra input::placeholder { color: rgba(242, 238, 240, .38); }
+    .rsvp-extra input:focus { border-color: var(--rose); background: rgba(244, 58, 140, .12); }
+    .rsvp-confirm { margin-top: 14px; width: 100%; flex: none; padding: 12px 4px 11px; font-size: 13.5px; }
+    .rsvp-confirm:disabled { opacity: .38; }
     .rsvp-msg {
       margin-top: 16px;
       padding: 14px;
@@ -715,6 +731,10 @@
           <button class="cta secondary" type="button" data-rsvp="待定" data-page-node-id="dDnb45ecOWRhsh4KBhHwvh">待定</button>
           <button class="cta secondary" type="button" data-rsvp="咕咕咕" data-page-node-id="lkJFapaBw7RGfiLBmzasIz">咕咕咕</button>
         </div>
+        <div class="rsvp-extra" id="rsvpExtra">
+          <input type="text" id="rsvpNote" maxlength="60" placeholder="">
+        </div>
+        <button class="cta rsvp-confirm" id="rsvpConfirm" type="button" disabled>确认发送</button>
         <div class="rsvp-msg" id="rsvpMsg" data-page-node-id="90wOFyzza45bELZFM4UKxH"></div>
         <div class="card" style="margin-top:20px;" data-page-node-id="aXdOCe1RVHvFkSiZJQCNBt">
           <h3 data-page-node-id="EX7ZCgtAvBHV6zojrjHfUg">地点导航</h3>
@@ -813,19 +833,30 @@
 
       var msg = document.getElementById('rsvpMsg');
       var buttons = document.querySelectorAll('[data-rsvp]');
+      var noteWrap = document.getElementById('rsvpExtra');
+      var noteInput = document.getElementById('rsvpNote');
+      var confirmBtn = document.getElementById('rsvpConfirm');
+
+      /* ★ 接收邮箱：换邮箱只改这里（首次提交后需到邮箱点 formsubmit 激活邮件） */
+      var RSVP_EMAIL = '1252166911@qq.com';
+
+      /* 受邀人姓名：个性化脚本会把 __INVITEE__ 替换成真名；通用版显示「朋友」 */
+      var INVITEE = '沐逸馨';
+      if (INVITEE === '沐逸馨') INVITEE = '朋友';
 
       var rsvpReply = {
         '姐来了': '我就知道你会来的，诡秘👄～',
-        '待定': '你还在🦑什么？席都不吃了你想干嘛',
-        '咕咕咕': '你最好给一个能说服我的理由...🔪'
+        '待定': '收到！记得最晚按时给我确定～',
+        '咕咕咕': '哼，理由我记下了...🔪'
       };
+      var NEED_NOTE = { '待定': '告诉我你最晚什么时候能确定呀（如 9月25日）',
+                        '咕咕咕': '好歹写个原因嘛…' };
+      var PLACEHOLDER = { '待定': '最晚什么时候确定？（如 9月25日）',
+                          '咕咕咕': '说说原因吧…' };
 
-      function render(status) {
-        msg.textContent = rsvpReply[status] || status;
-        msg.classList.add('show');
-      }
+      var chosen = null;
+      var sent = false;
 
-      /* 点谁谁填充：去掉其他按钮的 outline（secondary）状态，只保留当前项为实心 */
       function setActive(status) {
         for (var k = 0; k < buttons.length; k++) {
           if (buttons[k].getAttribute('data-rsvp') === status) {
@@ -836,22 +867,85 @@
         }
       }
 
+      function pick(status) {
+        chosen = status;
+        sent = false;
+        setActive(status);
+        if (PLACEHOLDER[status]) {
+          noteWrap.style.display = 'block';
+          noteInput.placeholder = PLACEHOLDER[status];
+        } else {
+          noteWrap.style.display = 'none';
+          noteInput.value = '';
+        }
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '确认发送';
+        msg.classList.remove('show');
+      }
+
       for (var j = 0; j < buttons.length; j++) {
         (function (btn) {
           btn.addEventListener('click', function () {
-            var status = btn.getAttribute('data-rsvp');
-            setActive(status);
-            render(status);
-            try { localStorage.setItem('tomboy_party_rsvp', status); } catch (err) {}
+            pick(btn.getAttribute('data-rsvp'));
           });
         })(buttons[j]);
       }
 
+      confirmBtn.addEventListener('click', function () {
+        if (!chosen || sent) return;
+        var note = noteInput.value.trim();
+        if (NEED_NOTE[chosen] && !note) {
+          msg.textContent = NEED_NOTE[chosen];
+          msg.classList.add('show');
+          noteInput.focus();
+          return;
+        }
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = '发送中…';
+        fetch('https://formsubmit.co/ajax/' + RSVP_EMAIL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            _subject: '🎂 RSVP｜' + INVITEE + '：' + chosen,
+            _template: 'table',
+            '姓名': INVITEE,
+            '回复': chosen,
+            '补充': note || '—',
+            '时间': new Date().toLocaleString('zh-CN')
+          })
+        }).then(function (r) {
+          return r.json().then(function (j) {
+            if (!r.ok) throw new Error(j.message || ('HTTP ' + r.status));
+            return j;
+          });
+        }).then(function () {
+          sent = true;
+          confirmBtn.textContent = '已发送 ✓';
+          msg.textContent = rsvpReply[chosen] || chosen;
+          msg.classList.add('show');
+          try { localStorage.setItem('tomboy_party_rsvp', JSON.stringify({ c: chosen, n: note })); } catch (err) {}
+        }).catch(function () {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = '确认发送';
+          msg.textContent = '网络开小差了，再点一次「确认发送」试试～';
+          msg.classList.add('show');
+        });
+      });
+
       var saved = null;
-      try { saved = localStorage.getItem('tomboy_party_rsvp'); } catch (err) {}
-      if (saved) {
-        setActive(saved);
-        msg.textContent = '你之前的回复是：' + saved + '。可重新选择修改。';
+      try { saved = JSON.parse(localStorage.getItem('tomboy_party_rsvp') || 'null'); } catch (err) {}
+      if (saved && saved.c) {
+        chosen = saved.c;
+        setActive(saved.c);
+        if (PLACEHOLDER[saved.c]) {
+          noteWrap.style.display = 'block';
+          noteInput.placeholder = PLACEHOLDER[saved.c];
+          noteInput.value = saved.n || '';
+        }
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '已发送 ✓';
+        sent = true;
+        msg.textContent = '你之前的回复是：' + saved.c + '（已收到）。重新选择可修改。';
         msg.classList.add('show');
       }
     })();
